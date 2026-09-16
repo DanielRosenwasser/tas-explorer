@@ -1,0 +1,23 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      tas-client:
+        specifier: ^0.4.6
+        version: 0.4.6
+
+packages:
+
+  tas-client@0.4.6:
+    resolution: {integrity: sha512-mmefC5nu8YZ5zGY4IyeXWnvK6YWv2YCz60/7q5banNU+R8JGZT2Q4lOS4g4xJyvnQIbqBFXzMFPsIitI8kVXqA==}
+    engines: {node: '>=22'}
+
+snapshots:
+
+  tas-client@0.4.6: {}

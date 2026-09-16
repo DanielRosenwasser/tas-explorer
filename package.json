@@ -1,0 +1,21 @@
+{
+  "name": "tas-value-cli",
+  "version": "1.0.0",
+  "description": "Query treatment variables with Microsoft's tas-client.",
+  "type": "module",
+  "bin": {
+    "tas": "./src/cli.js"
+  },
+  "scripts": {
+    "tas": "node ./src/cli.js",
+    "test": "node --test",
+    "check": "node --check src/cli.js && node --check src/vscode-filters.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "tas-client": "^0.4.6"
+  },
+  "license": "MIT"
+}

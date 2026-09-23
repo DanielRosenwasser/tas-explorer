@@ -6,7 +6,7 @@ import { resolveVSCodeFilters } from '../src/vscode-filters.js';
 function capture() {
     let value = '';
     return {
-        stream: { write: (chunk) => (value += chunk) },
+        stream: { write: (/** @type {string} */ chunk) => (value += chunk) },
         value: () => value,
     };
 }
@@ -122,6 +122,7 @@ test('always adds VS Code devDeviceId for the core assignment provider', () => {
 });
 
 test('uses persisted JSON-with-comments locale and explicit filter overrides', async () => {
+    /** @type {Record<string, string> | undefined} */
     let headers;
     const exitCode = await run(
         [
@@ -166,12 +167,14 @@ test('uses persisted JSON-with-comments locale and explicit filter overrides', a
     );
 
     assert.equal(exitCode, 0);
+    assert.ok(headers);
     assert.equal(headers['X-MSEdge-ClientId'], 'machine-123');
     assert.equal(headers['X-VSCode-ExtensionVersion'], '2026.12.0');
     assert.equal(headers['X-VSCode-Language'], 'de');
 });
 
 test('queries tas-client and forwards filters as headers', async () => {
+    /** @type {{ url: string, init: Parameters<import('tas-client').FetchFn>[1] } | undefined} */
     let request;
     const value = await getTreatmentVariable(
         {
@@ -193,6 +196,7 @@ test('queries tas-client and forwards filters as headers', async () => {
     );
 
     assert.equal(value, true);
+    assert.ok(request);
     assert.equal(request.url, 'https://example.test/tas');
     assert.equal(request.init.method, 'GET');
     assert.equal(request.init.headers['X-Version'], '1.2.3');

@@ -3,6 +3,28 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+/**
+ * @typedef {{ command: string, dataDirectory: string, installDirectory: string, appName: string, targetPopulation: string }} VSCodeChannel
+ * @typedef {(filePath: string, encoding: 'utf8') => string} ReadFile
+ * @typedef {(command: string, args: string[]) => string} Execute
+ * @typedef {object} FilterOptions
+ * @property {string} vscodeChannel
+ * @property {string} extensionName
+ * @property {string} [extensionVersion]
+ * @property {string} [language]
+ * @property {string} [targetPopulation]
+ * @property {string} [windowKind]
+ * @property {string} [releaseDate]
+ * @property {string} [cliVersion]
+ * @typedef {object} FilterDependencies
+ * @property {NodeJS.ProcessEnv} [env]
+ * @property {NodeJS.Platform} [platform]
+ * @property {string} [home]
+ * @property {ReadFile} [readFile]
+ * @property {Execute} [execute]
+ */
+
+/** @type {Record<string, VSCodeChannel>} */
 const CHANNELS = {
     stable: {
         command: 'code',
@@ -20,6 +42,11 @@ const CHANNELS = {
     },
 };
 
+/**
+ * @param {FilterOptions} options
+ * @param {FilterDependencies} [dependencies]
+ * @returns {Record<string, string>}
+ */
 export function resolveVSCodeFilters(options, dependencies = {}) {
     const env = dependencies.env ?? process.env;
     const platform = dependencies.platform ?? process.platform;
@@ -79,7 +106,9 @@ export function resolveVSCodeFilters(options, dependencies = {}) {
     return filters;
 }
 
+/** @param {NodeJS.Platform} platform */
 function getVSCodePlatform(platform) {
+    /** @type {Partial<Record<NodeJS.Platform, string>>} */
     const platforms = {
         win32: 'windows',
         darwin: 'mac',
@@ -88,12 +117,20 @@ function getVSCodePlatform(platform) {
     return platforms[platform] ?? platform;
 }
 
+/**
+ * @param {VSCodeChannel} channel
+ * @param {string | undefined} commit
+ * @param {NodeJS.ProcessEnv} env
+ * @param {NodeJS.Platform} platform
+ * @param {string} home
+ * @param {ReadFile} readFile
+ */
 function getVSCodeReleaseDate(channel, commit, env, platform, home, readFile) {
     const windowsInstallRoots = [
         env.LOCALAPPDATA &&
             path.join(env.LOCALAPPDATA, 'Programs', channel.installDirectory),
         env.ProgramFiles && path.join(env.ProgramFiles, channel.installDirectory),
-    ].filter(Boolean);
+    ].filter(/** @returns {root is string} */ (root) => Boolean(root));
     const candidates =
         platform === 'win32'
             ? windowsInstallRoots.flatMap((root) => [
@@ -141,11 +178,18 @@ function getVSCodeReleaseDate(channel, commit, env, platform, home, readFile) {
     return '';
 }
 
+/** @param {string} iso */
 function formatReleaseDate(iso) {
     const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
     return match ? match.slice(1, 5).join('') : '';
 }
 
+/**
+ * @param {string} directory
+ * @param {NodeJS.ProcessEnv} env
+ * @param {NodeJS.Platform} platform
+ * @param {string} home
+ */
 function getVSCodeDataPath(directory, env, platform, home) {
     if (platform === 'win32') {
         if (!env.APPDATA) {
@@ -159,6 +203,12 @@ function getVSCodeDataPath(directory, env, platform, home) {
     return path.join(env.XDG_CONFIG_HOME ?? path.join(home, '.config'), directory);
 }
 
+/**
+ * @param {string} filePath
+ * @param {ReadFile} readFile
+ * @param {string} description
+ * @returns {Record<string, unknown>}
+ */
 function readJsonFile(filePath, readFile, description) {
     let contents;
     try {
@@ -173,6 +223,10 @@ function readJsonFile(filePath, readFile, description) {
     }
 }
 
+/**
+ * @param {string} command
+ * @param {Execute} execute
+ */
 function getVSCodeBuild(command, execute) {
     let output;
     try {
@@ -188,6 +242,11 @@ function getVSCodeBuild(command, execute) {
     return { version, commit: lines[1]?.trim() };
 }
 
+/**
+ * @param {string} command
+ * @param {string} extensionName
+ * @param {Execute} execute
+ */
 function findExtensionVersion(command, extensionName, execute) {
     let output;
     try {
@@ -202,6 +261,11 @@ function findExtensionVersion(command, extensionName, execute) {
     return match?.trim().slice(prefix.length);
 }
 
+/**
+ * @param {string} dataPath
+ * @param {NodeJS.ProcessEnv} env
+ * @param {ReadFile} readFile
+ */
 function getVSCodeLanguage(dataPath, env, readFile) {
     if (env.VSCODE_NLS_CONFIG) {
         try {
@@ -227,10 +291,15 @@ function getVSCodeLanguage(dataPath, env, readFile) {
     return Intl.DateTimeFormat().resolvedOptions().locale.split('-')[0];
 }
 
+/** @param {string} version */
 function trimVersionSuffix(version) {
     return version.split(/\-[a-zA-Z0-9]+$/)[0];
 }
 
+/**
+ * @param {string} command
+ * @param {string[]} args
+ */
 function executeCommand(command, args) {
     if (process.platform === 'win32') {
         return execFileSync(process.env.ComSpec ?? 'cmd.exe', [
@@ -249,6 +318,7 @@ function executeCommand(command, args) {
     });
 }
 
+/** @param {string} input */
 function stripJsonComments(input) {
     let result = '';
     let inString = false;
@@ -296,6 +366,7 @@ function stripJsonComments(input) {
     return result;
 }
 
+/** @param {unknown} error */
 function formatError(error) {
     return error instanceof Error ? error.message : String(error);
 }

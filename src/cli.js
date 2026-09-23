@@ -3,11 +3,15 @@
 import { pathToFileURL } from 'node:url';
 import { ExperimentationService } from 'tas-client';
 import { resolveVSCodeFilters } from './vscode-filters.js';
+import { serveWeb } from './web-server.js';
 
 const HELP = `Usage:
   tas get <config-id> <variable-name> [options]
+  tas --web [options]
 
 Options:
+      --web                  Serve a local web UI instead of printing a value
+      --port <number>        Web server port (default: 3000; 0 selects a free port)
   -e, --endpoint <url>       TAS endpoint (defaults to VS Code's endpoint)
   -f, --filter <key=value>   Override/add a request header; may be repeated
       --vscode <channel>     VS Code profile: stable or insiders (default: stable)
@@ -26,20 +30,42 @@ Options:
 Examples:
   tas get vscode copilot.enabled
   tas get vscode rollout --vscode insiders
+  tas --web
+  tas get vscode copilot.enabled --web --port 8080
 `;
 
 const VERSION = '1.0.0';
 const DEFAULT_ENDPOINT = 'https://default.exp-tas.com/vscode/ab';
 
+/**
+ * @typedef {object} TreatmentOptions
+ * @property {string} endpoint
+ * @property {string} configId
+ * @property {string} variableName
+ * @property {Record<string, string>} filters
+ * @property {string} [extensionName]
+ * @typedef {import('./vscode-filters.js').FilterDependencies & {
+ *   stdout?: { write: (chunk: string) => unknown },
+ *   stderr?: { write: (chunk: string) => unknown },
+ *   fetch?: import('tas-client').FetchFn
+ * }} RunIO
+ */
+
 class CliError extends Error {
+    /** @param {string} message */
     constructor(message, exitCode = 1) {
         super(message);
         this.exitCode = exitCode;
     }
 }
 
+/**
+ * @param {string[]} argv
+ * @param {NodeJS.ProcessEnv} [env]
+ */
 export function parseArgs(argv, env = process.env) {
     const args = [...argv];
+    /** @type {Record<string, string>} */
     const filters = {};
     const positionals = [];
     let endpoint = env.TAS_ENDPOINT ?? DEFAULT_ENDPOINT;
@@ -54,6 +80,8 @@ export function parseArgs(argv, env = process.env) {
     let json = false;
     let help = false;
     let version = false;
+    let web = false;
+    let port;
 
     for (let index = 0; index < args.length; index += 1) {
         const argument = args[index];
@@ -61,6 +89,14 @@ export function parseArgs(argv, env = process.env) {
             help = true;
         } else if (argument === '--version' || argument === '-v') {
             version = true;
+        } else if (argument === '--web') {
+            web = true;
+        } else if (argument === '--port') {
+            const value = readOptionValue(args, ++index, argument);
+            if (!/^\d+$/.test(value) || Number(value) > 65535) {
+                throw new CliError('--port must be an integer between 0 and 65535.', 2);
+            }
+            port = Number(value);
         } else if (argument === '--json') {
             json = true;
         } else if (argument === '--endpoint' || argument === '-e') {
@@ -98,11 +134,16 @@ export function parseArgs(argv, env = process.env) {
     if (help || version) {
         return { help, version };
     }
-    if (positionals[0] !== 'get') {
-        throw new CliError('Expected the "get" command.', 2);
+    if (port !== undefined && !web) {
+        throw new CliError('--port requires --web.', 2);
     }
-    if (positionals.length !== 3) {
-        throw new CliError('The "get" command requires <config-id> and <variable-name>.', 2);
+    if (!(web && positionals.length === 0)) {
+        if (positionals[0] !== 'get') {
+            throw new CliError('Expected the "get" command.', 2);
+        }
+        if (positionals.length !== 3) {
+            throw new CliError('The "get" command requires <config-id> and <variable-name>.', 2);
+        }
     }
     if (!['stable', 'insiders'].includes(vscodeChannel)) {
         throw new CliError('--vscode must be "stable" or "insiders".', 2);
@@ -129,8 +170,9 @@ export function parseArgs(argv, env = process.env) {
 
     return {
         command: 'get',
-        configId: positionals[1],
-        variableName: positionals[2],
+        configId: positionals[1] ?? 'vscode',
+        variableName: positionals[2] ?? '',
+        ...(web ? { web: true, port: port ?? 3000 } : {}),
         endpoint: parsedEndpoint.href,
         filters,
         vscodeChannel,
@@ -146,6 +188,11 @@ export function parseArgs(argv, env = process.env) {
     };
 }
 
+/**
+ * @param {string[]} args
+ * @param {number} index
+ * @param {string} option
+ */
 function readOptionValue(args, index, option) {
     const value = args[index];
     if (!value || value.startsWith('-')) {
@@ -154,13 +201,20 @@ function readOptionValue(args, index, option) {
     return value;
 }
 
+/**
+ * @param {TreatmentOptions} options
+ * @param {import('tas-client').FetchFn} [fetchImplementation]
+ */
 export async function getTreatmentVariable(options, fetchImplementation = globalThis.fetch) {
     if (typeof fetchImplementation !== 'function') {
         throw new CliError('This command requires a runtime with the Fetch API.');
     }
 
+    /** @type {unknown} */
     let transportError;
+    /** @type {number | undefined} */
     let responseStatus;
+    /** @type {import('tas-client').FetchFn} */
     const fetchAdapter = async (url, init) => {
         try {
             const response = await fetchImplementation(url, init);
@@ -214,47 +268,64 @@ export async function getTreatmentVariable(options, fetchImplementation = global
     }
 }
 
+/** @param {unknown} error */
 function formatError(error) {
     return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * @param {TreatmentOptions & import('./vscode-filters.js').FilterOptions & { vscodeFilters: boolean }} options
+ * @param {RunIO} [io]
+ */
+export async function queryTreatment(options, io = {}) {
+    const automaticFilters = options.vscodeFilters
+        ? resolveVSCodeFilters(options, {
+              env: io.env ?? process.env,
+              execute: io.execute,
+              readFile: io.readFile,
+              platform: io.platform,
+              home: io.home,
+          })
+        : {};
+    const filters = { ...automaticFilters, ...options.filters };
+    const value = await getTreatmentVariable({ ...options, filters }, io.fetch ?? globalThis.fetch);
+    if (value === undefined) {
+        throw new CliError(
+            `Treatment variable "${options.variableName}" was not found in config "${options.configId}".`,
+            3,
+        );
+    }
+    return { configId: options.configId, variable: options.variableName, value, filters };
+}
+
+/**
+ * @param {string[]} argv
+ * @param {RunIO} [io]
+ */
 export async function run(argv, io = {}) {
     const stdout = io.stdout ?? process.stdout;
     const stderr = io.stderr ?? process.stderr;
     const env = io.env ?? process.env;
-    const fetchImplementation = io.fetch ?? globalThis.fetch;
 
     try {
         const options = parseArgs(argv, env);
-        if (options.help) {
-            stdout.write(HELP);
-            return 0;
-        }
-        if (options.version) {
-            stdout.write(`${VERSION}\n`);
+        if (!('command' in options)) {
+            stdout.write(options.help ? HELP : `${VERSION}\n`);
             return 0;
         }
 
-        const automaticFilters = options.vscodeFilters
-            ? resolveVSCodeFilters(options, {
-                  env,
-                  execute: io.execute,
-                  readFile: io.readFile,
-                  platform: io.platform,
-                  home: io.home,
-              })
-            : {};
-        options.filters = { ...automaticFilters, ...options.filters };
-        console.table(options.filters);
-
-        const value = await getTreatmentVariable(options, fetchImplementation);
-        if (value === undefined) {
-            throw new CliError(
-                `Treatment variable "${options.variableName}" was not found in config "${options.configId}".`,
-                3,
-            );
+        if (options.web) {
+            await serveWeb(options, {
+                parseArgs,
+                query: (queryOptions, fetch) => queryTreatment(queryOptions, { ...io, env, fetch }),
+                stdout,
+                fetch: io.fetch ?? globalThis.fetch,
+            });
+            return 0;
         }
 
+        const { value, filters } = await queryTreatment(options, io);
+        console.table(filters);
         const output = options.json
             ? { configId: options.configId, variable: options.variableName, value }
             : value;

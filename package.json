@@ -9,13 +9,18 @@
   "scripts": {
     "tas": "node ./src/cli.js",
     "test": "node --test",
-    "check": "node --check src/cli.js && node --check src/vscode-filters.js"
+    "check": "npm run typecheck",
+    "typecheck": "tsc --project tsconfig.json"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
     "tas-client": "^0.4.6"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "next"
   },
   "license": "MIT"
 }

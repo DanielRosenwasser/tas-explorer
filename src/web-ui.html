@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>TAS / Treatment explorer</title>
+    <link rel="stylesheet" href="/web-ui.css">
+    <script src="/web-ui.js" defer></script>
+</head>
+<body>
+    <div class="shell">
+        <header class="topbar">
+            <a class="brand" href="/" aria-label="TAS home"><span class="brand-mark">t.</span> TAS <span class="brand-divider">/</span> <span class="brand-subtitle">Treatment explorer</span></a>
+            <span class="local-badge"><span class="dot"></span> Local session</span>
+        </header>
+        <main>
+            <div class="intro">
+                <p class="eyebrow">EXPERIMENTATION, WITHOUT THE GUESSWORK</p>
+                <h1>Find your next <span>treatment.</span></h1>
+                <p>Query TAS with your VS Code identity. Inspect the value, understand the request.</p>
+            </div>
+            <div class="workspace">
+                <section class="panel query-panel" aria-labelledby="query-title">
+                    <div class="panel-heading"><div><span class="step">01 / REQUEST</span><h2 id="query-title">Build a query</h2></div><span class="tag">GET</span></div>
+                    <form id="query-form">
+                        <fieldset id="query-fields" disabled>
+                            <div class="field"><label for="config-id">Config ID</label><input id="config-id" name="configId" required placeholder="vscode" autocomplete="off" spellcheck="false"></div>
+                            <div class="field"><label for="variable-name">Treatment variable</label><input id="variable-name" name="variableName" required placeholder="feature.enabled" autocomplete="off" spellcheck="false"><small>The exact parameter name in your treatment configuration.</small></div>
+                            <div class="field"><label for="endpoint">TAS endpoint</label><input id="endpoint" name="endpoint" type="url" required spellcheck="false"></div>
+                            <div class="field-row">
+                                <div class="field"><label for="vscode-channel">VS Code profile</label><select id="vscode-channel" name="vscodeChannel"><option value="stable">Stable</option><option value="insiders">Insiders</option></select></div>
+                                <div class="field"><label for="window-kind">Window kind</label><select id="window-kind" name="windowKind"><option value="editor">Editor</option><option value="agents">Agents</option></select></div>
+                            </div>
+                            <label class="toggle-row"><input id="vscode-filters" name="vscodeFilters" type="checkbox" checked><span><strong>Use VS Code identity</strong><small>Read local machine, device, and build headers.</small></span></label>
+                            <details class="advanced">
+                                <summary>Advanced overrides <span>+</span></summary>
+                                <div class="advanced-fields">
+                                    <div class="field"><label for="extension-name">Extension / caller</label><input id="extension-name" name="extensionName" required placeholder="vscode-core" spellcheck="false"></div>
+                                    <div class="field-row">
+                                        <div class="field"><label for="extension-version">Extension version</label><input id="extension-version" name="extensionVersion" placeholder="Auto-detect" spellcheck="false"></div>
+                                        <div class="field"><label for="language">Language</label><input id="language" name="language" placeholder="Auto-detect" spellcheck="false"></div>
+                                    </div>
+                                    <div class="field"><label for="target">Target population</label><select id="target" name="targetPopulation"><option value="">Profile default</option><option value="public">Public</option><option value="insider">Insider</option><option value="team">Team</option><option value="internal">Internal</option></select></div>
+                                    <div class="field"><label for="release-date">Release date</label><input id="release-date" name="releaseDate" placeholder="2026-09-01T12:00:00Z" spellcheck="false"></div>
+                                    <div class="field"><label for="filters">Custom headers</label><textarea id="filters" name="filters" rows="4" placeholder="X-VSCode-Language=en&#10;X-Custom-Header=value" spellcheck="false"></textarea><small>One key=value per line. Overrides automatic headers.</small></div>
+                                </div>
+                            </details>
+                            <button id="submit-query" class="primary-button" type="submit"><span>Query treatment</span><span aria-hidden="true">&rarr;</span></button>
+                        </fieldset>
+                    </form>
+                    <p class="privacy-note">Runs locally. Queries go only to your selected TAS endpoint.</p>
+                </section>
+                <section class="panel result-panel" aria-labelledby="result-title" aria-busy="false">
+                    <div class="panel-heading"><div><span class="step">02 / RESPONSE</span><h2 id="result-title">Treatment result</h2></div><span id="status-badge" class="tag">Ready</span></div>
+                    <div id="feedback" role="status" aria-live="polite" class="feedback" hidden></div>
+                    <div id="empty-state" class="empty-state">
+                        <div class="empty-icon" aria-hidden="true">{ <span>?</span> }</div>
+                        <h3>A little clarity, one query away.</h3>
+                        <p>Choose a config and treatment variable.<br>Your assigned value will appear here.</p>
+                        <div class="example"><span>TRY A QUERY</span><code>vscode / feature.enabled</code></div>
+                    </div>
+                    <div id="result-content" hidden>
+                        <div class="result-meta"><code id="result-path"></code><span id="duration"></span></div>
+                        <div class="value-card"><div class="value-heading"><span>ASSIGNED VALUE</span><span id="value-type" class="type-badge"></span></div><pre id="result-value" tabindex="0"></pre></div>
+                        <div class="section-heading"><h3>Response JSON</h3><button id="copy-result" type="button" class="text-button">Copy JSON</button></div>
+                        <pre id="result-json" class="code-block" tabindex="0"></pre>
+                        <details class="headers-details"><summary>Request headers <span id="header-count"></span></summary><p class="headers-note">Includes local identity values. Review before sharing.</p><dl id="request-headers"></dl></details>
+                    </div>
+                    <div class="result-footer"><span class="dot"></span> Powered by Microsoft's tas-client <span class="footer-version">No added dependencies</span></div>
+                </section>
+            </div>
+        </main>
+        <footer class="page-footer"><span>TAS / VALUE CLI</span><span>Local by design. Precise by default.</span></footer>
+    </div>
+</body>
+</html>

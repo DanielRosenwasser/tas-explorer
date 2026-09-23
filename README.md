@@ -18,6 +18,53 @@ npm install
 npm run tas -- get <config-id> <variable-name>
 ```
 
+## Development
+
+Install dependencies with `pnpm install` (the lockfile pins the resolved TypeScript nightly).
+JavaScript in `src` and `test` is strictly type-checked using JSDoc, without emitting files:
+
+```console
+pnpm run typecheck
+pnpm run check
+pnpm test
+```
+
+`check` runs type checking. The compiler dependency uses `typescript@next`;
+run `pnpm update typescript` to move to a newer nightly.
+
+For VS Code, install the recommended **TypeScript (Native Preview)** extension. Workspace
+settings enable the native language service used by TypeScript 7 nightly builds, rather
+than VS Code's bundled TypeScript service. Both use the project's `jsconfig.json`.
+
+## Web UI
+
+Start a local treatment explorer in server mode:
+
+```console
+npm run tas -- --web
+```
+
+Open the printed URL (by default `http://127.0.0.1:3000`) in your browser. The server stays
+running until you press Ctrl+C. It binds only to IPv4 loopback, not your network interfaces.
+No additional dependencies, CDN assets, or browser frameworks are used.
+
+Use `--port` to choose a port, or `--port 0` to select an available port. Existing query options
+become editable defaults in the UI; supplying a `get` command also pre-fills the config and variable:
+
+```console
+npm run tas -- get vscode feature.enabled --web --vscode insiders --port 8080
+```
+
+The UI supports the same profile, caller, language, target, window kind, release date, endpoint,
+and custom header overrides as the CLI. It shows the assigned value and its type, copyable
+response JSON, elapsed query time, and the resolved request headers. Missing variables and
+request errors are shown explicitly; outbound web queries time out after 30 seconds.
+
+VS Code identity is read on each query, not at server startup. Disable **Use VS Code identity**
+(or start with `--no-vscode-filters`) for raw requests. Queries send headers, including machine
+and device IDs when enabled, to the selected endpoint. Request headers displayed in the UI may
+contain these identifiers; review them before sharing. The local API rejects cross-origin requests.
+
 ## Usage
 
 The CLI defaults to VS Code's `https://default.exp-tas.com/vscode/ab` endpoint and automatically
